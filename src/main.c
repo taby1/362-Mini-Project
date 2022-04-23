@@ -10,7 +10,15 @@
 
 
 #include "stm32f0xx.h"
-#define thrust 20
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include "lcd.h"
+#include "midi.h"
+#include "midiplay.h"
+#include "game.h"
+#define thrust 0.2
 
 void enable_ports()
 {
@@ -106,11 +114,11 @@ void handle_key(char key)
 void update_variables(void)
 {
     if (mode == '4')
-        ;//x_acc -= thrust;
+        x_acc -= thrust;
     if (mode == '5')
-        ;//y_acc += thrust;
+        y_acc += thrust;
     if (mode == '6')
-        ;//x_acc += thrust;
+        x_acc += thrust;
 }
 
 void TIM14_IRQHandler()
@@ -131,6 +139,7 @@ void setup_tim14()
 
 int main(void)
 {
-
-	for(;;);
+    enable_ports();
+    setup_tim7();
+    setup_tim14();
 }
