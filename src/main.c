@@ -18,7 +18,6 @@
 #include "midi.h"
 #include "midiplay.h"
 #include "game.h"
-#define thrust 0.2
 
 void enable_ports()
 {
@@ -56,8 +55,7 @@ void enable_ports()
 
 char col = 0;
 char keymap[16] = "DCBA#9630852*741";
-char mode = 'A';
-char disp[8] = "Hello...";
+char key;
 
 int read_rows()
 {
@@ -87,10 +85,9 @@ void TIM7_IRQHandler()
     TIM7->SR &= ~TIM_SR_UIF;
     int rows = read_rows();
     if (rows != 0) {
-        char key = rows_to_key(rows);
-        handle_key(key);
+        key = rows_to_key(rows);
     }
-    char ch = disp[col];
+    //char ch = disp[col];
     //show_char(col, ch);
     col = (col + 1) & 7;
     drive_column(col);
@@ -106,19 +103,26 @@ void setup_tim7()
     TIM7->CR1 |= TIM_CR1_CEN;
 }
 
-void handle_key(char key)
-{
-    mode = key;
-}
 
 void update_variables(void)
 {
-    if (mode == '4')
-        x_acc -= thrust;
-    if (mode == '5')
-        y_acc += thrust;
-    if (mode == '6')
-        x_acc += thrust;
+    if (key == '4') {
+        dx -= x_acc;
+        fuel -= x_acc;
+    }
+    if (key == '5') {
+        dy -= y_acc - gravity;
+        fuel -= y_acc;
+    }
+    else
+        dy += gravity;
+    if (key == '6') {
+        dx += x_acc;
+        fuel -= x_acc;
+    }
+    if (key == '0') {
+        start();
+    }
 }
 
 void TIM14_IRQHandler()
