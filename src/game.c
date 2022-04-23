@@ -43,15 +43,16 @@ void start() {
 }
 
 void game(void) {
-    srandom(TIM2->CNT);  // seeding may need change depending on timer used
+    srandom(TIM2->CNT);  // seeding may need change depending on the timer used
     ground = background.height - background.height / 10;
     MIDI_Player *mp = midi_init(midifile);  // not sure if playing here
     init_tim16();
 
     start();
     for(;;) {
+        update_variables();
         if (y + lander.height / 2 >= ground) {
-            print_values();
+            // display values
             if (round(dy*10)/10 > landing_dy) {
                 // display Crashed
             }
@@ -61,13 +62,15 @@ void game(void) {
             else {
                 // display mission failed
             }
-            // wait for restart button
+            drive_column(2);
+            while(read_rows() != 1);
             start();
         }
         if (y <= y_max || fuel <= 0 || game_time <= 0) {
             // update values
             // display mission failed
-            // wait for restart button
+            drive_column(2);
+            while(read_rows() != 1);
             start();
         }
         if (dx != 0 || dy != 0) {
