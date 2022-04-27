@@ -17,7 +17,7 @@
 #define VEL_GAP 15
 
 
-void nano_wait(unsigned int n) {
+/*void nano_wait(unsigned int n) {
     asm(    "        mov r0,%0\n"
             "repeat: sub r0,#83\n"
             "        bgt repeat\n" : : "r"(n) : "r0", "cc");
@@ -29,7 +29,7 @@ void drive_column(int c) {
 
 int read_rows() {
     return (~GPIOC->IDR) & 0xf;
-}
+}*/
 
 // Copy a subset of a large source picture into a smaller destination.
 // sx,sy are the offset into the source picture.
