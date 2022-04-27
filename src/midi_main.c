@@ -6,6 +6,11 @@
 // The number of simultaneous voices to support.
 #define VOICES 15
 
+int muted = 0; // 0 for false, 1 for true
+MIDI_Player *mp;
+
+
+
 // An array of "voices".  Each voice can be used to play a different note.
 // Each voice can be associated with a channel (explained later).
 // Each voice has a step size and an offset into the wave table.
@@ -25,21 +30,23 @@ void TIM6_DAC_IRQHandler(void)
     // TODO: Remember to acknowledge the interrupt right here.
     TIM6->SR &= ~TIM_SR_UIF;
 
-    int sample = 0;
-    for(int x=0; x < sizeof voice / sizeof voice[0]; x++) {
-        if (voice[x].in_use) {
-            voice[x].offset += voice[x].step;
-            if (voice[x].offset >= N<<16)
-                voice[x].offset -= N<<16;
-            sample += (wavetable[voice[x].offset>>16] * voice[x].volume) >> 4;
+    if(!muted){
+        int sample = 0;
+        for(int x=0; x < sizeof voice / sizeof voice[0]; x++) {
+            if (voice[x].in_use) {
+                voice[x].offset += voice[x].step;
+                if (voice[x].offset >= N<<16)
+                    voice[x].offset -= N<<16;
+                sample += (wavetable[voice[x].offset>>16] * voice[x].volume) >> 4;
+            }
         }
+        sample = (sample >> 10) + 2048;
+        if (sample > 4095)
+            sample = 4095;
+        else if (sample < 0)
+            sample = 0;
+        DAC->DHR12R1 = sample;
     }
-    sample = (sample >> 10) + 2048;
-    if (sample > 4095)
-        sample = 4095;
-    else if (sample < 0)
-        sample = 0;
-    DAC->DHR12R1 = sample;
 }
 
 // Initialize the DAC so that it can output analog samples
@@ -208,6 +215,23 @@ void TIM2_IRQHandler(void)
     note_on(0,0,notes[num],128);
 }*/
 
+void restart(){
+    for(int n = 0; n < VOICES; n++){
+        voice[n].in_use = 0; // disable it first...
+        voice[n].chan = 0;   // ...then clear its values
+//        voice[n].note = key;
+//        voice[n].step = step[key];
+    }
+    mp = midi_init(midifile);
+}
+void mute(){
+    muted = 1;
+}
+void unmute(){
+    muted = 0;
+}
+
+
 void TIM2_IRQHandler(void)
 {
     TIM2->SR &= ~TIM_SR_UIF;
@@ -235,12 +259,22 @@ void init_tim2(int n) {
     NVIC_SetPriority(TIM2_IRQn, 3);
 }
 
+void midi_setup(){
+    init_wavetable_hybrid2();
+    init_dac();
+    init_tim6();
+    mp = midi_init(midifile);
+    // The default rate for a MIDI file is 2 beats per second
+    // with 48 ticks per beat.  That's 500000/48 microseconds.
+    init_tim2(10417);
+}
+
 int main(void)
 {
     init_wavetable_hybrid2();
     init_dac();
     init_tim6();
-    MIDI_Player *mp = midi_init(midifigit pule);
+    mp = midi_init(midifile);
     // The default rate for a MIDI file is 2 beats per second
     // with 48 ticks per beat.  That's 500000/48 microseconds.
     init_tim2(10417);
