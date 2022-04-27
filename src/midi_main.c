@@ -269,19 +269,19 @@ void midi_setup(){
     init_tim2(10417);
 }
 
-int main(void)
-{
-    init_wavetable_hybrid2();
-    init_dac();
-    init_tim6();
-    mp = midi_init(midifile);
-    // The default rate for a MIDI file is 2 beats per second
-    // with 48 ticks per beat.  That's 500000/48 microseconds.
-    init_tim2(10417);
-    for(;;) {
-        asm("wfi");
-        // If we hit the end of the MIDI file, start over.
-        if (mp->nexttick == MAXTICKS)
-            mp = midi_init(midifile);
-    }
-}
+//int main(void)
+//{
+//    init_wavetable_hybrid2();
+//    init_dac();
+//    init_tim6();
+//    mp = midi_init(midifile);
+//    // The default rate for a MIDI file is 2 beats per second
+//    // with 48 ticks per beat.  That's 500000/48 microseconds.
+//    init_tim2(10417);
+//    for(;;) {
+//        asm("wfi");
+//        // If we hit the end of the MIDI file, start over.
+//        if (mp->nexttick == MAXTICKS)
+//            mp = midi_init(midifile);
+//    }
+//}
