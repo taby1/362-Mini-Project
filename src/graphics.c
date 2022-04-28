@@ -2,6 +2,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "lcd.h"
+#include "game.h"
+
+#include <stdio.h>
 
 #define TIME_X 210
 #define TIME_Y 5
@@ -21,14 +24,6 @@ void nano_wait(unsigned int n) {
     asm(    "        mov r0,%0\n"
             "repeat: sub r0,#83\n"
             "        bgt repeat\n" : : "r"(n) : "r0", "cc");
-}
-
-void drive_column(int c) {
-    GPIOC->BSRR = 0xf00000 | ~(1 << (c + 4));
-}
-
-int read_rows() {
-    return (~GPIOC->IDR) & 0xf;
 }
 
 // Copy a subset of a large source picture into a smaller destination.
@@ -79,7 +74,14 @@ void pic_overlay(Picture *dst, int xoffset, int yoffset, const Picture *src, int
 
 extern const Picture background; // A 240x320 background image
 extern const Picture lander; // A 19x19 purple ball with white boundaries
-extern const Picture platform;
+//extern const Picture target;
+
+struct {
+    int width;
+    int height;
+} target = {60, 10};
+
+int x_target_last;
 
 // This C macro will create an array of Picture elements.
 // Really, you'll just use it as a pointer to a single Picture
@@ -89,114 +91,41 @@ extern const Picture platform;
 // A 100x100 picture uses 20000 bytes.  You have 32768 bytes of SRAM.
 #define TempPicturePtr(name,width,height) Picture name[(width)*(height)/6+2] = { {width,height,2} }
 
-void erase(int x, int y) {
-    TempPicturePtr(tmp,29,29);
-    pic_subset(tmp, &background, x-tmp->width/2, y-tmp->height/2);
-    LCD_DrawPicture(x-tmp->width/2,y-tmp->height/2, tmp);
+void draw_background(){
+    LCD_DrawPicture(0, 0, &background);
 }
 
 void update_ship(int x, int y) {
-    TempPicturePtr(tmp,40,40); // Create a temporary 29x29 image.
+    TempPicturePtr(tmp,60,64); // Create a temporary 29x29 image.
     pic_subset(tmp, &background, x-tmp->width/2, y-tmp->height/2); // Copy the background
-    pic_overlay(tmp, 5,5, &lander, 0xffff); // Overlay the ball
+    pic_overlay(tmp, 10,12, &lander, 0x07E0); // Overlay the ball
     LCD_DrawPicture(x-tmp->width/2,y-tmp->height/2, tmp); // Draw
 }
 
-void update_platform(int x)
-{
-	int y = 310;
-    TempPicturePtr(tmp,70,25); // Create a temporary image.
-    pic_subset(tmp, &background, x-tmp->width/2, y-tmp->height/2); // Copy the background
-    pic_overlay(tmp, 5,5, &platform, 0xffff); // Overlay the platform
-    LCD_DrawPicture(x-tmp->width/2,y-tmp->height/2, tmp); // Draw
+void update_target(int x_target) {
+    int ground = background.height - background.height / 10;
+    if (x_target <= -target.width/2 || x_target >= background.width+target.width/2) {
+        LCD_DrawFillRectangle(0, ground, background.width, ground+target.height, 0x630c);
+    }
+    else if (x_target < target.width/2) {
+        LCD_DrawFillRectangle(x_target+target.width/2, ground, x_target+target.width, ground+target.height, 0x630c);
+        LCD_DrawFillRectangle(0, ground, x_target+target.width/2, ground+target.height, RED);
+    }
+    else if (x_target > background.width - target.width/2) {
+        LCD_DrawFillRectangle(x_target-target.width, ground, x_target-target.width/2, ground+target.height, 0x630c);
+        LCD_DrawFillRectangle(x_target-target.width/2, ground, background.width, ground+target.height, RED);
+    }
+    else if (x_target < target.width){
+        LCD_DrawFillRectangle(0, ground, x_target-target.width/2, ground+target.height, 0x630c);
+        LCD_DrawFillRectangle(x_target+target.width/2, ground, x_target+target.width, ground+target.height, 0x630c);
+        LCD_DrawFillRectangle(x_target-target.width/2, ground, x_target+target.width/2, ground+target.height, RED);
+    }
+    else {
+        LCD_DrawFillRectangle(x_target-target.width, ground, x_target-target.width/2, ground+target.height, 0x630c);
+        LCD_DrawFillRectangle(x_target+target.width/2, ground, x_target+target.width, ground+target.height, 0x630c);
+        LCD_DrawFillRectangle(x_target-target.width/2, ground, x_target+target.width/2, ground+target.height, RED);
+    }
 }
-
-/*
-void move_ship(){
-	xvel = yvel = 1;
-	px = sx = 120;
-	sy = 160;
-
-	LCD_DrawPicture(0,0,&background);
-	update_ship(sx,sy);
-	update_platform(px);
-
-	int dpx = 1;
-
-
-	for(;;) {
-		nano_wait(1000000); // wait 1 ms
-		sx += xvel;
-		sy += yvel;
-		update_ship(sx, sy);
-
-		if(px > 200 && dpx > 0){
-			dpx = -dpx;
-		} else if (px < 10 && dpx < 0){
-			dpx = -dpx;
-		}
-		px += dpx;
-		update_platform(px);
-	}
-
-
-}*/
-
-void move_ball(void)
-{
-    // Draw the background.
-    LCD_DrawPicture(0,0,&background);
-    int x = 120;
-    int y = 160;
-    update_ball(x,y);
-    for(;;)
-        for(int c=0; c<4; c++) {
-            int dx=0;
-            int dy=0;
-            drive_column(c);
-            nano_wait(1000000); // wait 1 ms
-            int r = read_rows();
-            if (c==3) { // leftmost column
-                if (r & 8) { // '1'
-                    dy -= 1; dx -= 1;
-                }
-                if (r & 4) { // '4'
-                    dx -= 1;
-                }
-                if (r & 2) { // '7'
-                    dy += 1; dx -= 1;
-                }
-            } else if (c == 2) { // column 2
-                if (r & 8) { // '2'
-                    dy -= 1;
-                }
-                if (r & 4) { // '5' re-center the ball
-                    erase(x,y);
-                    dx = 1; dy = 1;
-                    x = 119; y = 159;
-                }
-                if (r & 2) { // '8'
-                    dy += 1;
-                }
-            } else if (c == 1) { // column 3
-                if (r & 8) { // '3'
-                    dy -= 1; dx += 1;
-                }
-                if (r & 4) { // '6'
-                    dx += 1;
-                }
-                if (r & 2) { // '9'
-                    dy += 1; dx += 1;
-                }
-            }
-            if (dx !=0 || dy != 0) {
-                x += dx;
-                y += dy;
-                update_ball(x,y);
-            }
-        }
-}
-
 
 
 void erase_time(int x, int y) {
@@ -213,69 +142,65 @@ void erase_fuel(int x, int y) {
     LCD_DrawPicture(x,y,tmp); // Draw
 }
 
-
-
 void update_display(float fuel, float time, float vel){
-	int x = 210;
-	int y = 5;
-	//TempPicturePtr(tmp,40,80); // Create a temporary image.
-	//pic_subset(tmp, &background, x-tmp->width/2, y-tmp->height/2); // Copy the background
-	//pic_overlay(tmp, 5,5, &platform, 0xffff); // Overlay the platform
-	//LCD_DrawPicture(x-tmp->width/2,y-tmp->height/2, tmp); // Draw
+    //TempPicturePtr(tmp,40,80); // Create a temporary image.
+    //pic_subset(tmp, &background, x-tmp->width/2, y-tmp->height/2); // Copy the background
+    //pic_overlay(tmp, 5,5, &platform, 0xffff); // Overlay the platform
+    //LCD_DrawPicture(x-tmp->width/2,y-tmp->height/2, tmp); // Draw
 
 
 
-	// TIME INDICATOR
+    // TIME INDICATOR
 
-	// write "T-"
-	LCD_DrawString(TIME_X,TIME_Y, 0xffff, 0x0000, "T-", 12, 1);
+    // write "T-"
+    LCD_DrawString(TIME_X,TIME_Y, 0xffff, 0x0000, "T-", 12, 1);
 
-	// erase prev number
-	TempPicturePtr(tmp,30,30);
-	pic_subset(tmp, &background, TIME_X + TIME_GAP, TIME_Y);
-	LCD_DrawPicture(TIME_X + TIME_GAP,TIME_Y,tmp);
+    // erase prev number
+    TempPicturePtr(tmp,30,30);
+    pic_subset(tmp, &background, TIME_X + TIME_GAP, TIME_Y);
+    LCD_DrawPicture(TIME_X + TIME_GAP,TIME_Y,tmp);
 
-	// write current number
-	char time_str[2]; // 2 digits
-	sprintf(time_str, "%d", (int)time);
-	LCD_DrawString(TIME_X + TIME_GAP,TIME_Y, 0xffff, 0x0000, time_str, 12, 1);
+    // write current number
+    char time_str[2]; // 2 digits
+    sprintf(time_str, "%d", (int)time);
+    LCD_DrawString(TIME_X + TIME_GAP,TIME_Y, 0xffff, 0x0000, time_str, 12, 1);
 
-	// FUEL INDICATOR
+    // FUEL INDICATOR
 
-	if(fuel <= 0){
-		// erase label and indicator
-		TempPicturePtr(tmp3,IND_W,IND_H);
-		pic_subset(tmp3, &background, FUEL_X, FUEL_Y);
-		LCD_DrawPicture(FUEL_X,FUEL_Y,tmp3);
+    if(fuel <= 0){
+        // erase label and indicator
+        TempPicturePtr(tmp3,IND_W,IND_H);
+        pic_subset(tmp3, &background, FUEL_X, FUEL_Y);
+        LCD_DrawPicture(FUEL_X,FUEL_Y,tmp3);
 
-		// draw red "FUEL" and red border
-		LCD_DrawString(FUEL_X,FUEL_Y, 0xF800, 0x0000, "FUEL", 12, 1);
-		LCD_DrawRectangle(IND_X, IND_Y, IND_X+IND_W, IND_Y+IND_H, 0xF800);
-	} else {
-		//erase just indicator
-		TempPicturePtr(tmp3,IND_W,IND_H);
-		pic_subset(tmp3, &background, IND_X, IND_Y);
-		LCD_DrawPicture(IND_X,IND_Y,tmp3);
+        // draw red "FUEL" and red border
+        LCD_DrawString(FUEL_X,FUEL_Y, 0xF800, 0x0000, "FUEL", 12, 1);
+        LCD_DrawRectangle(IND_X, IND_Y, IND_X+IND_W, IND_Y+IND_H, 0xF800);
+    } else {
+        //erase just indicator
+        TempPicturePtr(tmp3,IND_W,IND_H);
+        pic_subset(tmp3, &background, IND_X, IND_Y);
+        LCD_DrawPicture(IND_X,IND_Y,tmp3);
 
-		// draw white border and green/red fill
-		LCD_DrawString(FUEL_X,FUEL_Y, 0xffff, 0x0000, "FUEL", 12, 1);
-		LCD_DrawFillRectangle(IND_X, IND_Y + (1-fuel)*IND_H, IND_X+IND_W, IND_Y + IND_H, fuel > 0.2 ? 0x3FE0 : 0xF800); // variable size green or red filler
-		LCD_DrawRectangle(IND_X, IND_Y, IND_X+IND_W, IND_Y+IND_H, 0xffff); // outline
-	}
+        // draw white border and green/red fill
+        LCD_DrawString(FUEL_X,FUEL_Y, 0xffff, 0x0000, "FUEL", 12, 1);
+        LCD_DrawFillRectangle(IND_X, IND_Y + (1-fuel)*IND_H, IND_X+IND_W, IND_Y + IND_H, fuel > 0.2 ? 0x3FE0 : 0xF800); // variable size green or red filler
+        LCD_DrawRectangle(IND_X, IND_Y, IND_X+IND_W, IND_Y+IND_H, 0xffff); // outline
+    }
 
-	// VELOCITY INDICATOR
+    // VELOCITY INDICATOR
 /*
-	// write "SPEED"
-	LCD_DrawString(VEL_X,VEL_Y, 0xffff, 0x0000, "SPEED", 12, 1);
+    // write "SPEED"
+    LCD_DrawString(VEL_X,VEL_Y, 0xffff, 0x0000, "SPEED", 12, 1);
 
-	// erase prev number
-	TempPicturePtr(tmp2,30,30);
-	pic_subset(tmp2, &background, VEL_X + VEL_GAP, VEL_Y);
-	LCD_DrawPicture(VEL_X + VEL_GAP,VEL_Y,tmp);
+    // erase prev number
+    TempPicturePtr(tmp2,30,30);
+    pic_subset(tmp2, &background, VEL_X + VEL_GAP, VEL_Y);
+    LCD_DrawPicture(VEL_X + VEL_GAP,VEL_Y,tmp);
 
-	// write current number
-	char vel_str[2]; // 2 digits
-	sprintf(vel_str, "%d", (int)vel);
-	LCD_DrawString(VEL_X + VEL_GAP,VEL_Y, 0xffff, 0x0000, vel_str, 12, 1);
+    // write current number
+    char vel_str[2]; // 2 digits
+    sprintf(vel_str, "%d", (int)vel);
+    LCD_DrawString(VEL_X + VEL_GAP,VEL_Y, 0xffff, 0x0000, vel_str, 12, 1);
 */
 }

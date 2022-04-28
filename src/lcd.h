@@ -84,8 +84,8 @@ void LCD_DrawString(u16 x,u16 y, u16 fc, u16 bg, const char *p, u8 size, u8 mode
 // C Picture data structure.
 //===========================================================================
 typedef struct {
-    unsigned int   width;
-    unsigned int   height;
+    int   width;
+    int   height;
     unsigned int   bytes_per_pixel; // 2:RGB16, 3:RGB, 4:RGBA
     union {
     unsigned char  pixel_data[0]; // variable length array

@@ -9,16 +9,16 @@
 #define GAME_H_
 
 char str[40];
-float init_x = 120;
-float init_y = 50;
-float init_time = 30.1;
-float dx_max = 99;
-float y_max = -100;
-float landing_dy = 2;
-float x_acc = 0.5;
-float y_acc = 1.1;
-float gravity = 0.8;
-float rotation = 2.3;
+float init_x;
+float init_y;
+float init_time;
+float dx_max;
+float y_max;
+float landing_dy;
+float x_acc;
+float y_acc;
+float gravity;
+float rotation;
 
 int ground;
 int x;
@@ -30,9 +30,24 @@ float dy;
 float dx_target;
 float game_time;
 
+/*
 struct {
     int width;
     int height;
-} target = {60, 10};
+} target = {60, 10};*/
+
+void draw_background(void);
+void update_ship(int x, int y);
+void drive_column(int c);
+int read_rows(void);
+void restart(void);
+void unmute(void);
+void mute(void);
+void update_target(int x_target);
+void update_variables(int c);
+void nano_wait(unsigned int n);
+void start(void);
+void midi_setup(void);
+void game(void);
 
 #endif /* GAME_H_ */

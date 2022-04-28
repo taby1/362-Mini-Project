@@ -5,12 +5,24 @@
 #include <stdio.h>
 #include <math.h>
 #include "lcd.h"
+#include "game.h"
 #include "midi.h"
 #include "midiplay.h"
-#include "game.h"
 
 extern const Picture background;
 extern const Picture lander;
+extern const Picture target;
+
+float init_x = 120;
+float init_y = 50;
+float init_time = 30;
+float dx_max = 99;
+float y_max = -100;
+float landing_dy = 2;
+float x_acc = 0.5;
+float y_acc = 1.1;
+float gravity = 0.8;
+float rotation = 2.3;
 
 void TIM16_IRQHandler(void) {
     TIM16->SR &= ~TIM_SR_UIF;
@@ -31,83 +43,94 @@ void start() {
     y = init_y;
     dx = 0;
     dy = 0;
-    dx_target = (random()%2)? rotation:-rotation;
-    x_target = (random()%2)? (random()%5+1)*1000+(random()%10)*100:-(random()%5+1)*1000+(random()%10)*100;
+    //dx_target = (random()%2)? rotation:-rotation;
+    //x_target = (random()%2)? (random()%5+1)*1000+(random()%10)*100:-(random()%5+1)*1000+(random()%10)*100;
+    dx_target = 0;
+    x_target = 50;
+    //fuel = abs(x_target) / 15;
+    fuel = 9999;
+    draw_background();
+    update_ship(x,y);
+    LCD_DrawString(60, 150, WHITE, BLACK, "Press 5 to Start", 16, 1);
+    drive_column(2);
+    while(read_rows()!=4);
     game_time = init_time * abs(x_target) / (5900*2) + init_time / 2;
-    fuel = abs(x_target) / 15;
-    // draw background
-    // update lander
-    // print start prompt
-    // wait for start button
-    // draw background
+    restart();
+    unmute();
+    draw_background();
 }
 
-void game(void) {
-    srandom(TIM2->CNT);  // seeding may need change depending on the timer used
-    ground = background.height - background.height / 10;
-    MIDI_Player *mp = midi_init(midifile);  // not sure if playing here
+void game(void)
+{
+    srandom(TIM2->CNT);
     init_tim16();
-
+    int ground = background.height - background.height / 10;
     start();
-    for(;;) {
-        update_variables();
-        if (y + lander.height / 2 >= ground) {
-            // display values
-            if (round(dy*10)/10 > landing_dy) {
-                // display Crashed
-            }
-            else if (x+lander.width / 2 < x_target + target.width && x+lander.width/2 > x_target-target.width) {
-                // display mission completed
-            }
-            else {
-                // display mission failed
-            }
-            drive_column(2);
-            while(read_rows() != 1);
-            start();
-        }
-        if (y <= y_max || fuel <= 0 || game_time <= 0) {
-            // update values
-            // display mission failed
-            drive_column(2);
-            while(read_rows() != 1);
-            start();
-        }
-        if (dx != 0 || dy != 0) {
-            if (dx <= -dx_max) {
-                dx = -dx_max;
-            }
-            else if (dx >= dx_max) {
-                dx = dx_max;
-            }
-            if (x <= lander.width/2 && dx < 0) {
-                x = lander.width/2;
-                x_target -= dx;
-            }
-            else if (x >= background.width - lander.width/2 && dx>0) {
-                x = background.width-lander.width/2;
-                x_target -= dx;
-            }
-            else {
-                x += dx;
-            }
-            if (y+dy+lander.height/2 >= ground) {
-                y = ground - lander.height/2;
-            }
-            else {
-                y += dy;
-            }
 
-            x_target += dx_target;
-            // update lander
-            if (x_target >= -background.width/2 && x_target <= background.width*1.5) {
-                // update target
+    for(;;) {
+        for(int c=1; c<4; c++) {
+            update_variables(c);
+            if (y + lander.height / 2 >= ground) {
+                // print values
+                mute();
+                if (round(dy*10)/10 > landing_dy) {
+                    LCD_DrawString(90,140, YELLOW, BLACK, "Crashed", 16, 1);
+                }
+                else if (x+lander.width/2 < x_target + target.width && x+lander.width/2 > x_target - target.width){
+                    LCD_DrawString(50,140, GREEN, BLACK, "Mission Completed", 16, 1);
+                }
+                else {
+                    LCD_DrawString(65,140, YELLOW, BLACK, "Mission Failed", 16, 1);
+                }
+                drive_column(2);
+                while(read_rows() != 1);
+                start();
             }
-            else {
-                // show target indicator
+            if (y <= y_max || fuel <= 0 || game_time <= 0) {
+                // print values;
+                mute();
+                LCD_DrawString(65,140, YELLOW, BLACK, "Mission Failed", 16, 1);
+                drive_column(2);
+                while(read_rows() != 1);
+                start();
             }
-            // print values
-            // if music end, loop music
+            if (dx !=0 || dy != 0) {
+                if (dx <= -dx_max) {
+                    dx = -dx_max;
+                }
+                else if (dx >= dx_max) {
+                    dx = dx_max;
+                }
+                if (x <= lander.width/2 && dx < 0) {
+                    x = lander.width/2;
+                    x_target -= dx;
+                }
+                else if (x >= background.width-lander.width/2 && dx > 0) {
+                    x = background.width-lander.width/2;
+                    x_target -= dx;
+                }
+                else {
+                    x += dx;
+                }
+                if (y+dy+lander.height/2 >= ground) {
+                    y = ground - lander.height/2;
+                }
+                else {
+                    y += dy;
+                }
+
+                x_target += dx_target;
+                update_ship(x, y);
+                if (x_target >= -background.width/2 && x_target <= background.width*1.5) {
+                    update_target(x_target);
+                }
+                else {
+                    // target indicator
+                }
+                // print values
+            }
         }
+        if (mp->nexttick == MAXTICKS)
+            restart();
     }
 }
