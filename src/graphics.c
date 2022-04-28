@@ -15,9 +15,12 @@
 #define IND_Y FUEL_Y + 15
 #define IND_W 15
 #define IND_H 50
-#define VEL_X TIME_X
+#define VEL_X TIME_X-3
 #define VEL_Y IND_Y + IND_H + 5
 #define VEL_GAP 15
+#define VEL2_X VEL_X
+#define VEL2_Y VEL_Y + 15
+#define VEL2_GAP 15
 
 
 void nano_wait(unsigned int n) {
@@ -74,12 +77,13 @@ void pic_overlay(Picture *dst, int xoffset, int yoffset, const Picture *src, int
 
 extern const Picture background; // A 240x320 background image
 extern const Picture lander; // A 19x19 purple ball with white boundaries
-//extern const Picture target;
+extern const Picture target;
 
-struct {
+/*struct {
     int width;
     int height;
 } target = {60, 10};
+*/
 
 int x_target_last;
 
@@ -125,6 +129,18 @@ void update_target(int x_target) {
         LCD_DrawFillRectangle(x_target+target.width/2, ground, x_target+target.width, ground+target.height, 0x630c);
         LCD_DrawFillRectangle(x_target-target.width/2, ground, x_target+target.width/2, ground+target.height, RED);
     }
+
+}
+
+void update_indicator(int x_target){
+    int ground = background.height - background.height / 10;
+    if (x_target < 0){
+        LCD_DrawFillTriangle(5,ground+target.height/2,15,ground,15,ground+target.height,RED);
+        LCD_DrawFillRectangle(15,ground+target.height/2-3,45,ground+target.height/2+3,RED);
+    } else if (x_target > background.width){
+        LCD_DrawFillTriangle(background.width - 5,ground+target.height/2,background.width - 15,ground,background.width - 15,ground+target.height,RED);
+        LCD_DrawFillRectangle(background.width - 45,ground+target.height/2-3, background.width - 15,ground+target.height/2+3,RED);
+    }
 }
 
 
@@ -142,18 +158,12 @@ void erase_fuel(int x, int y) {
     LCD_DrawPicture(x,y,tmp); // Draw
 }
 
-void update_display(float fuel, float time, float vel){
-    //TempPicturePtr(tmp,40,80); // Create a temporary image.
-    //pic_subset(tmp, &background, x-tmp->width/2, y-tmp->height/2); // Copy the background
-    //pic_overlay(tmp, 5,5, &platform, 0xffff); // Overlay the platform
-    //LCD_DrawPicture(x-tmp->width/2,y-tmp->height/2, tmp); // Draw
-
-
+void update_display(){
 
     // TIME INDICATOR
 
     // write "T-"
-    LCD_DrawString(TIME_X,TIME_Y, 0xffff, 0x0000, "T-", 12, 1);
+    LCD_DrawString(TIME_X,TIME_Y, WHITE, 0x18CA, "T-", 12, 0);
 
     // erase prev number
     TempPicturePtr(tmp,30,30);
@@ -162,45 +172,51 @@ void update_display(float fuel, float time, float vel){
 
     // write current number
     char time_str[2]; // 2 digits
-    sprintf(time_str, "%d", (int)time);
-    LCD_DrawString(TIME_X + TIME_GAP,TIME_Y, 0xffff, 0x0000, time_str, 12, 1);
+    sprintf(time_str, "%d", (int)game_time);
+    LCD_DrawString(TIME_X + TIME_GAP,TIME_Y, WHITE, 0x18CA, time_str, 12, 0);
 
     // FUEL INDICATOR
+    //erase just indicator
+    /*TempPicturePtr(tmp3,IND_W,IND_H);
+    pic_subset(tmp3, &background, IND_X, IND_Y);
+    LCD_DrawPicture(IND_X,IND_Y,tmp3);*/
 
-    if(fuel <= 0){
-        // erase label and indicator
-        TempPicturePtr(tmp3,IND_W,IND_H);
-        pic_subset(tmp3, &background, FUEL_X, FUEL_Y);
-        LCD_DrawPicture(FUEL_X,FUEL_Y,tmp3);
+    // draw white border and green/red fill
+    LCD_DrawString(FUEL_X,FUEL_Y, WHITE, 0x18CA, "FUEL", 12, 0);
+    LCD_DrawFillRectangle(IND_X,IND_Y, IND_X+IND_W, IND_Y + (1-fuel/init_fuel)*IND_H, 0x18CA);
+    LCD_DrawFillRectangle(IND_X, IND_Y + (1-fuel/init_fuel)*IND_H, IND_X+IND_W, IND_Y + IND_H, fuel/init_fuel > 0.2 ? GREEN : RED); // variable size green or red filler
+    LCD_DrawRectangle(IND_X-1, IND_Y-1, IND_X+IND_W, IND_Y+IND_H, WHITE); // outline
 
-        // draw red "FUEL" and red border
-        LCD_DrawString(FUEL_X,FUEL_Y, 0xF800, 0x0000, "FUEL", 12, 1);
-        LCD_DrawRectangle(IND_X, IND_Y, IND_X+IND_W, IND_Y+IND_H, 0xF800);
-    } else {
-        //erase just indicator
-        TempPicturePtr(tmp3,IND_W,IND_H);
-        pic_subset(tmp3, &background, IND_X, IND_Y);
-        LCD_DrawPicture(IND_X,IND_Y,tmp3);
-
-        // draw white border and green/red fill
-        LCD_DrawString(FUEL_X,FUEL_Y, 0xffff, 0x0000, "FUEL", 12, 1);
-        LCD_DrawFillRectangle(IND_X, IND_Y + (1-fuel)*IND_H, IND_X+IND_W, IND_Y + IND_H, fuel > 0.2 ? 0x3FE0 : 0xF800); // variable size green or red filler
-        LCD_DrawRectangle(IND_X, IND_Y, IND_X+IND_W, IND_Y+IND_H, 0xffff); // outline
-    }
 
     // VELOCITY INDICATOR
-/*
-    // write "SPEED"
-    LCD_DrawString(VEL_X,VEL_Y, 0xffff, 0x0000, "SPEED", 12, 1);
+
+    // write "dy"
+    LCD_DrawString(VEL_X,VEL_Y, WHITE, 0x18CA, "dy", 12, 0);
 
     // erase prev number
     TempPicturePtr(tmp2,30,30);
     pic_subset(tmp2, &background, VEL_X + VEL_GAP, VEL_Y);
-    LCD_DrawPicture(VEL_X + VEL_GAP,VEL_Y,tmp);
+    LCD_DrawPicture(VEL_X + VEL_GAP,VEL_Y,tmp2);
 
     // write current number
     char vel_str[2]; // 2 digits
-    sprintf(vel_str, "%d", (int)vel);
-    LCD_DrawString(VEL_X + VEL_GAP,VEL_Y, 0xffff, 0x0000, vel_str, 12, 1);
-*/
+    sprintf(vel_str, "%d", (int)-dy);
+    LCD_DrawString(VEL_X + VEL_GAP,VEL_Y, WHITE, 0x18CA, vel_str, 12, 0);
+
+
+    // write "dx"
+    LCD_DrawString(VEL2_X,VEL2_Y, WHITE, 0x18CA, "dx", 12, 0);
+
+    // erase prev number
+    TempPicturePtr(tmp8,30,30);
+    pic_subset(tmp8, &background, VEL_X + VEL_GAP, VEL_Y);
+    LCD_DrawPicture(VEL2_X + VEL2_GAP,VEL2_Y,tmp8);
+
+    // write current number
+    char vel2_str[2]; // 2 digits
+    sprintf(vel2_str, "%d", (int)dx);
+    LCD_DrawString(VEL2_X + VEL2_GAP,VEL2_Y, WHITE, 0x18CA, vel2_str, 12, 0);
+
+
+
 }

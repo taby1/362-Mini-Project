@@ -24,6 +24,7 @@ int ground;
 int x;
 int y;
 float fuel;
+float init_fuel;
 int x_target;
 float dx;
 float dy;
@@ -49,5 +50,6 @@ void nano_wait(unsigned int n);
 void start(void);
 void midi_setup(void);
 void game(void);
+void update_indicator(int x_target);
 
 #endif /* GAME_H_ */

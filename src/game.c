@@ -43,18 +43,16 @@ void start() {
     y = init_y;
     dx = 0;
     dy = 0;
-    //dx_target = (random()%2)? rotation:-rotation;
-    //x_target = (random()%2)? (random()%5+1)*1000+(random()%10)*100:-(random()%5+1)*1000+(random()%10)*100;
-    dx_target = 0;
-    x_target = 50;
-    //fuel = abs(x_target) / 15;
-    fuel = 9999;
+    dx_target = (random()%2)? rotation:-rotation;
+    x_target = (random()%2)? (random()%5+1)*1000+(random()%10)*100:-(random()%5+1)*1000+(random()%10)*100;
+    fuel = abs(x_target) / 12;
+    init_fuel = fuel;
     draw_background();
     update_ship(x,y);
     LCD_DrawString(60, 150, WHITE, BLACK, "Press 5 to Start", 16, 1);
     drive_column(2);
     while(read_rows()!=4);
-    game_time = init_time * abs(x_target) / (5900*2) + init_time / 2;
+    game_time = init_time;
     restart();
     unmute();
     draw_background();
@@ -71,7 +69,7 @@ void game(void)
         for(int c=1; c<4; c++) {
             update_variables(c);
             if (y + lander.height / 2 >= ground) {
-                // print values
+                update_display();
                 mute();
                 if (round(dy*10)/10 > landing_dy) {
                     LCD_DrawString(90,140, YELLOW, BLACK, "Crashed", 16, 1);
@@ -87,7 +85,7 @@ void game(void)
                 start();
             }
             if (y <= y_max || fuel <= 0 || game_time <= 0) {
-                // print values;
+                update_display();
                 mute();
                 LCD_DrawString(65,140, YELLOW, BLACK, "Mission Failed", 16, 1);
                 drive_column(2);
@@ -125,11 +123,11 @@ void game(void)
                     update_target(x_target);
                 }
                 else {
-                    // target indicator
+                    update_indicator(x_target);
                 }
-                // print values
             }
         }
+        update_display();
         if (mp->nexttick == MAXTICKS)
             restart();
     }
